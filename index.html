@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Santuario de la Naturaleza Río Cruces</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; }
+    header { background: #1b4332; color: white; padding: 10px 16px; }
+    header h1 { margin: 0; font-size: 18px; }
+    header p { margin: 2px 0 0; font-size: 13px; opacity: .85; }
+    #map { height: calc(100vh - 62px); }
+    .leyenda { background: white; padding: 8px 12px; border-radius: 6px;
+               box-shadow: 0 0 6px rgba(0,0,0,.3); font-size: 13px; line-height: 1.6; }
+    .leyenda i { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border-radius: 2px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Santuario de la Naturaleza Río Cruces</h1>
+    <p>Área de influencia e industrias entre Valdivia y San José de la Mariquina</p>
+  </header>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+  <script>
+    // Mapa base
+    const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { attribution: '© OpenStreetMap' });
+    const satelite = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { attribution: 'Esri' });
+    const map = L.map('map', { center: [-39.70, -73.20], zoom: 10, layers: [osm] });
+
+    // Polígono del santuario (APROXIMADO, [lon, lat]); reemplazar por el oficial
+    const santuario = turf.polygon([[
+      [-73.205, -39.695], [-73.170, -39.700], [-73.160, -39.745],
+      [-73.190, -39.790], [-73.235, -39.800], [-73.255, -39.760],
+      [-73.245, -39.715], [-73.205, -39.695]
+    ]]);
+
+    // Área de influencia (naranja)
+    const DISTANCIA_KM = 5;
+    const buffer = turf.buffer(santuario, DISTANCIA_KM, { units: 'kilometers' });
+
+    const capaBuffer = L.geoJSON(buffer, {
+      style: { color: 'orange', fillColor: 'orange', fillOpacity: 0.25, weight: 2 }
+    }).bindTooltip('Área de influencia: ' + DISTANCIA_KM + ' km').addTo(map);
+
+    const capaSantuario = L.geoJSON(santuario, {
+      style: { color: 'darkgreen', fillColor: 'darkgreen', fillOpacity: 0.5, weight: 3 }
+    }).bindTooltip('Santuario de la Naturaleza Río Cruces').addTo(map);
+
+    // Industrias (eia: true = azul, false = rojo). VERIFICAR en el SEIA.
+    const industrias = [
+      { nombre: 'Planta Valdivia (Celulosa Arauco)', lat: -39.549, lon: -73.120, rubro: 'Celulosa', eia: true },
+      { nombre: 'EJEMPLO - Aserradero 1', lat: -39.600, lon: -73.050, rubro: 'Forestal', eia: false },
+      { nombre: 'EJEMPLO - Planta procesadora 2', lat: -39.640, lon: -73.150, rubro: 'Alimentos', eia: false },
+      { nombre: 'EJEMPLO - Planta tratamiento 3', lat: -39.780, lon: -73.230, rubro: 'Aguas servidas', eia: true }
+    ];
+
+    const pin = color => L.divIcon({
+      className: '',
+      html: `<div style="background:${color};width:18px;height:18px;border-radius:50% 50% 50% 0;
+             transform:rotate(-45deg);border:2px solid white;box-shadow:0 0 4px #000"></div>`,
+      iconSize: [18, 18], iconAnchor: [9, 18], popupAnchor: [0, -18]
+    });
+
+    const conEIA = L.layerGroup().addTo(map);
+    const sinEIA = L.layerGroup().addTo(map);
+
+    industrias.forEach(i => {
+      const m = L.marker([i.lat, i.lon], { icon: pin(i.eia ? 'blue' : 'red') })
+        .bindPopup(`<b>${i.nombre}</b><br>Rubro: ${i.rubro}<br>Estado: ${i.eia ? 'Con EIA' : 'Sin EIA'}`)
+        .bindTooltip(i.nombre);
+      m.addTo(i.eia ? conEIA : sinEIA);
+    });
+
+    // Control de capas
+    L.control.layers(
+      { 'OpenStreetMap': osm, 'Satélite': satelite },
+      { 'Área de influencia': capaBuffer, 'Santuario': capaSantuario,
+        'Con EIA (azul)': conEIA, 'Sin EIA (rojo)': sinEIA },
+      { collapsed: false }
+    ).addTo(map);
+
+    // Leyenda
+    const leyenda = L.control({ position: 'bottomleft' });
+    leyenda.onAdd = () => {
+      const d = L.DomUtil.create('div', 'leyenda');
+      d.innerHTML = '<b>Leyenda</b><br>' +
+        '<i style="background:orange"></i>Área de influencia<br>' +
+        '<i style="background:darkgreen"></i>Santuario<br>' +
+        '<i style="background:blue"></i>Industria con EIA<br>' +
+        '<i style="background:red"></i>Industria sin EIA';
+      return d;
+    };
+    leyenda.addTo(map);
+  </script>
+</body>
+</html>
